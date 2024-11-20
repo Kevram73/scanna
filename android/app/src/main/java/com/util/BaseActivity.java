@@ -36,7 +36,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 
-import com.pda.example.R;
+import com.example.scanna.R;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;

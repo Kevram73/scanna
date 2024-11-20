@@ -2,15 +2,17 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 class RFIDController extends GetxController {
-  static const _methodChannel = MethodChannel('com.example.scanna/method');
-  static const _eventChannel = EventChannel('com.example.scanna/events');
+  static const MethodChannel _methodChannel = MethodChannel('com.example.scanna/method');
+  static const EventChannel _eventChannel = EventChannel('com.example.scanna/events');
 
-  // Observable properties for state management
+  // Observable properties
   var isInitialized = false.obs;
   var isReading = false.obs;
   var powerLevel = 0.obs;
-  var frequency = 0.obs;
   var tagData = <String>[].obs;
+
+  // Listener for tag data
+  RxString lastTag = ''.obs;
 
   @override
   void onInit() {
@@ -22,13 +24,15 @@ class RFIDController extends GetxController {
   /// Initialize the RFID reader
   Future<void> initializeReader() async {
     try {
-      final bool result = await _methodChannel.invokeMethod('initialize');
-      isInitialized.value = result;
-      if (!result) {
-        Get.snackbar('Initialization Failed', 'Could not initialize RFID reader.');
+      final result = await _methodChannel.invokeMethod<bool>('initializeReader');
+      isInitialized.value = result ?? false;
+      if (!isInitialized.value) {
+        Get.snackbar('Error', 'Failed to initialize the RFID reader.');
+      } else {
+        Get.snackbar('Success', 'RFID reader initialized.');
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to initialize: $e');
+      Get.snackbar('Error', 'Initialization failed: $e');
     }
   }
 
@@ -42,6 +46,7 @@ class RFIDController extends GetxController {
     try {
       await _methodChannel.invokeMethod('startReading');
       isReading.value = true;
+      Get.snackbar('Reading Started', 'RFID reader is now scanning.');
     } catch (e) {
       Get.snackbar('Error', 'Failed to start reading: $e');
     }
@@ -52,6 +57,7 @@ class RFIDController extends GetxController {
     try {
       await _methodChannel.invokeMethod('stopReading');
       isReading.value = false;
+      Get.snackbar('Reading Stopped', 'RFID reader has stopped scanning.');
     } catch (e) {
       Get.snackbar('Error', 'Failed to stop reading: $e');
     }
@@ -60,40 +66,25 @@ class RFIDController extends GetxController {
   /// Set power level of the RFID reader
   Future<void> setPower(int level) async {
     try {
-      final bool result = await _methodChannel.invokeMethod('setPower', {'power': level});
-      if (result) {
+      final result = await _methodChannel.invokeMethod<bool>('setAntennaPower', {'power': level});
+      if (result == true) {
         powerLevel.value = level;
         Get.snackbar('Success', 'Power level set to $level.');
       } else {
         Get.snackbar('Error', 'Failed to set power level.');
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to set power: $e');
+      Get.snackbar('Error', 'Failed to set power level: $e');
     }
   }
 
-  /// Get current power level
+  /// Get current power level of the RFID reader
   Future<void> getPower() async {
     try {
-      final int level = await _methodChannel.invokeMethod('getPower');
-      powerLevel.value = level;
+      final int result = await _methodChannel.invokeMethod<int>('getAntennaPower') ?? 0;
+      powerLevel.value = result;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to get power: $e');
-    }
-  }
-
-  /// Set frequency of the RFID reader
-  Future<void> setFrequency(int freq) async {
-    try {
-      final bool result = await _methodChannel.invokeMethod('setFrequency', {'frequency': freq});
-      if (result) {
-        frequency.value = freq;
-        Get.snackbar('Success', 'Frequency set to $freq.');
-      } else {
-        Get.snackbar('Error', 'Failed to set frequency.');
-      }
-    } catch (e) {
-      Get.snackbar('Error', 'Failed to set frequency: $e');
+      Get.snackbar('Error', 'Failed to get power level: $e');
     }
   }
 
@@ -102,8 +93,9 @@ class RFIDController extends GetxController {
     _eventChannel.receiveBroadcastStream().listen(
           (dynamic data) {
         tagData.add(data.toString());
+        lastTag.value = data.toString();
       },
-      onError: (dynamic error) {
+      onError: (error) {
         Get.snackbar('Error', 'Failed to receive tag data: $error');
       },
     );
